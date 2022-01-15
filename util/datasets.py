@@ -104,7 +104,7 @@ def build_transform_pretrain(args):
 
     custom_t = []
     default_t = [
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation='bicubic'),  # 3 is bicubic
+            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)]
