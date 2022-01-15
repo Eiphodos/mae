@@ -62,7 +62,7 @@ def build_transform_finetune(is_train, args):
         crop_pct = 1.0
     size = int(args.input_size / crop_pct)
     t.append(
-        transforms.Resize(size, interpolation=PIL.Image.BICUBIC),  # to maintain same ratio w.r.t. 224 images
+        transforms.Resize(size, interpolation='bicubic'),  # to maintain same ratio w.r.t. 224 images
     )
     t.append(transforms.CenterCrop(args.input_size))
 
@@ -104,7 +104,7 @@ def build_transform_pretrain(args):
 
     custom_t = []
     default_t = [
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation='bicubic'),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)]
