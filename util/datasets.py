@@ -20,7 +20,7 @@ import torch.distributed as dist
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
-from misc import is_main_process, is_dist_avail_and_initialized
+from .misc import is_main_process, is_dist_avail_and_initialized
 
 
 def build_dataset_finetune(is_train, args):
