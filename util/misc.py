@@ -338,3 +338,10 @@ def all_reduce_mean(x):
         return x_reduce.item()
     else:
         return x
+
+
+def log_to_neptune(neptune_logger, metric_dict):
+    epoch = metric_dict['epoch']
+    for k, v in metric_dict.items():
+        if not k == 'epoch':
+            neptune_logger[k].log(v, epoch)

@@ -15,18 +15,19 @@ import numpy as np
 import os
 import time
 from pathlib import Path
+import neptune.new as neptune
 
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 
 import timm
 
 assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
 
+from util.datasets import build_dataset_pretrain
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
@@ -50,6 +51,9 @@ def get_args_parser():
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
 
+    parser.add_argument('--channels', default=3, type=int,
+                        help='Number of channels for the images')
+
     parser.add_argument('--mask_ratio', default=0.75, type=float,
                         help='Masking ratio (percentage of removed patches).')
 
@@ -71,10 +75,20 @@ def get_args_parser():
     parser.add_argument('--warmup_epochs', type=int, default=40, metavar='N',
                         help='epochs to warmup LR')
 
+    # Data transform parameters
+    parser.add_argument('--clip_ct_intensity', default=False, action='store_true',
+                        help='If input images should be clipped to a set intensity')
+    parser.add_argument('--ct_intensity_min', default=-1000, type=int,
+                        help='Minimum CT intensity')
+    parser.add_argument('--ct_intensity_max', default=1000, type=int,
+                        help='Maximum CT intensity')
+
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
                         help='dataset path')
 
+    parser.add_argument('--use_tmp_dir', default=False, action='store_true',
+                        help='If data should be extract from data_path to a local temp directory')
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_dir',
@@ -119,13 +133,8 @@ def main(args):
 
     cudnn.benchmark = True
 
-    # simple augmentation
-    transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
+    # Build dataset and transform
+    dataset_train = build_dataset_pretrain(args)
     print(dataset_train)
 
     if True:  # args.distributed:
@@ -144,6 +153,10 @@ def main(args):
     else:
         log_writer = None
 
+    if global_rank == 0:
+        neptune_logger = neptune.init()
+        neptune_logger['parameters'] = vars(args)
+
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
@@ -153,7 +166,7 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, in_chans=args.channels)
 
     model.to(device)
 
@@ -200,7 +213,10 @@ def main(args):
                 loss_scaler=loss_scaler, epoch=epoch)
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                        'epoch': epoch,}
+                        'epoch': epoch, }
+
+        if misc.is_main_process():
+            misc.log_to_neptune(neptune_logger, log_stats)
 
         if args.output_dir and misc.is_main_process():
             if log_writer is not None:
@@ -211,6 +227,7 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+    neptune_logger.stop()
 
 
 if __name__ == '__main__':
