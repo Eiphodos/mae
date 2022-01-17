@@ -23,8 +23,6 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 
 import timm
-
-assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
 
 from util.datasets import build_dataset_pretrain
@@ -34,6 +32,8 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 import models_mae
 
 from engine_pretrain import train_one_epoch
+
+assert timm.__version__ == "0.3.2"  # version check
 
 
 def get_args_parser():
@@ -77,8 +77,10 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Data transform parameters
-    parser.add_argument('--clip_ct_intensity', default=False, action='store_true',
-                        help='If input images should be clipped to a set intensity')
+    parser.add_argument('--pp_ct_intensity', default=False, action='store_true',
+                        help='If input images should be clipped to a set intensity during preprocessing')
+    parser.add_argument('--transform_ct_intensity', default=False, action='store_true',
+                        help='If input images should be clipped to a set intensity during transform')
     parser.add_argument('--ct_intensity_min', default=-1000, type=int,
                         help='Minimum CT intensity')
     parser.add_argument('--ct_intensity_max', default=1000, type=int,

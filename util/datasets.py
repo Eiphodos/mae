@@ -13,6 +13,7 @@ import PIL
 import numpy as np
 import multiprocessing as mp
 from itertools import repeat
+import nibabel as nib
 
 from torchvision import datasets, transforms
 import torch.distributed as dist
@@ -21,6 +22,9 @@ from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from .misc import is_main_process, is_dist_avail_and_initialized
+
+NPZ_SUFFIX = '.npz'
+NIFTI_SUFFIX = '.nii.gz'
 
 
 def build_dataset_finetune(is_train, args):
@@ -78,7 +82,8 @@ def build_dataset_pretrain(args):
         img_folder = os.getenv('TMPDIR')
         assert img_folder is not None
         if is_main_process():
-            extract_dataset_to_local(args.data_path, img_folder)
+            extract_dataset_to_local(args.data_path, img_folder,
+                                     args.pp_ct_intensity, args.ct_intensity_min, args.ct_intensity_max)
         if is_dist_avail_and_initialized():
             dist.barrier()
     else:
@@ -108,7 +113,7 @@ def build_transform_pretrain(args):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)]
-    if args.clip_ct_intensity:
+    if args.transform_ct_intensity:
         custom_t.append(ClipCTIntensity(args.ct_intensity_min, args.ct_intensity_max))
     t = transforms.Compose(custom_t + default_t)
     return t
@@ -117,9 +122,6 @@ def build_transform_pretrain(args):
 def grayscale_loader(path):
     with open(path, 'rb') as f:
         img = PIL.Image.open(f)
-        nimg = np.array(img)
-        nimg = nimg.astype(np.uint8)
-        img = PIL.Image.fromarray(nimg)
         return img.convert('L')
 
 
@@ -129,23 +131,55 @@ def rgb_loader(path):
         return img.convert('RGB')
 
 
-def extract_dataset_to_local(root, image_folder):
+def extract_dataset_to_local(root, image_folder, pp_ct, ct_min, ct_max):
     root, dirs, files = next(os.walk(root))
+    os.makedirs(image_folder, exist_ok=True)
     nprocs = mp.cpu_count()
     pool = mp.Pool(processes=nprocs)
-    pool.starmap(extract_npz_to_disk, zip(files, repeat(root), repeat(image_folder)))
+    pool.starmap(extract_nifti_to_disk, zip(files, repeat(root), repeat(image_folder),
+                                            repeat(pp_ct), repeat(ct_min), repeat(ct_max)))
     pool.close()
     pool.join()
 
 
-def extract_npz_to_disk(file, root, image_folder):
-    case_folder = os.path.join(image_folder, file[:-4])
-    os.makedirs(case_folder, exist_ok=True)
-    data = np.load(os.path.join(root, file))
-    for i, arr in enumerate(data):
-        filename = file[:-4] + '_' + str(i) + '.png'
-        im = PIL.Image.fromarray(data[arr])
-        im.save(os.path.join(case_folder, filename))
+def extract_nifti_to_disk(file, root, image_folder, pp_ct, ct_min, ct_max):
+    try:
+        fn = file[:-len(NIFTI_SUFFIX)]
+        case_folder = os.path.join(image_folder, fn)
+        os.makedirs(case_folder, exist_ok=True)
+        data = nib.load(os.path.join(root, file))
+        np_data = data.get_fdata()
+        if pp_ct:
+            np_data = clip_ct_window(np_data, ct_min, ct_max)
+        np_data = np.transpose(np_data, (2, 0, 1))
+        for i, v_slice in enumerate(np_data):
+            filename = fn + '_' + str(i) + '.png'
+            im = PIL.Image.fromarray(v_slice)
+            im = im.convert('L')
+            im.save(os.path.join(case_folder, filename))
+    except Exception as e:
+        print('Failed to processes file {} with error {}'.format(file, e))
+
+
+def extract_npz_to_disk(file, root, image_folder, pp_ct, ct_min, ct_max):
+    try:
+        fn = file[:-len(NPZ_SUFFIX)]
+        case_folder = os.path.join(image_folder, fn)
+        os.makedirs(case_folder, exist_ok=True)
+        data = np.load(os.path.join(root, file))
+        for i, arr in enumerate(data):
+            if pp_ct:
+                arr = clip_ct_window(arr, ct_min, ct_max)
+            filename = fn + '_' + str(i) + '.png'
+            im = PIL.Image.fromarray(data[arr])
+            im.save(os.path.join(case_folder, filename))
+    except Exception as e:
+        print('Failed to processes file {} with error {}'.format(file, e))
+
+
+def clip_ct_window(np_arr, ct_min, ct_max):
+    np_arr = np.minimum(255, np.maximum(0, (np_arr - ct_min) / (ct_max - ct_min) * 255))
+    return np_arr.astype(np.uint8)
 
 
 class ClipCTIntensity:
@@ -155,9 +189,6 @@ class ClipCTIntensity:
 
     def __call__(self, img):
         npimg = np.array(img).astype(np.int32)
-        # Convert from 16-bit image not already done.
-        if np.min(npimg) > 255:
-            npimg = npimg - 32768
         windowed_npimg = np.minimum(255, np.maximum(0, (npimg-self.ct_min)/(self.ct_max-self.ct_min)*255))
         windowed_npimg = windowed_npimg.astype(np.uint8)
         windowed_img = PIL.Image.fromarray(windowed_npimg)
