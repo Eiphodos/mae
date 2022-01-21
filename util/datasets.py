@@ -9,7 +9,7 @@
 # --------------------------------------------------------
 
 import os
-import PIL
+from PIL import Image
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -122,13 +122,13 @@ def build_transform_pretrain(args):
 
 def grayscale_loader(path):
     with open(path, 'rb') as f:
-        img = PIL.Image.open(f)
+        img = Image.open(f)
         return img.convert('L')
 
 
 def rgb_loader(path):
     with open(path, 'rb') as f:
-        img = PIL.Image.open(f)
+        img = Image.open(f)
         return img.convert('RGB')
 
 
@@ -143,7 +143,9 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
         file_ct_max = []
         for fn in files:
             pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[7:9].lstrip('0'))
-            dcm_w = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (metadata['Series_ID'] == series_id)]['DICOM_windows'].item()
+            row = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (
+                        metadata['Series_ID'] == series_id)]
+            dcm_w = row['DICOM_windows'].iloc[0]
             n_ct_min, n_ct_max = int(dcm_w.split(', ')[0]), int(dcm_w.split(', ')[1])
             file_ct_min.append(n_ct_min)
             file_ct_max.append(n_ct_max)
@@ -168,7 +170,7 @@ def extract_nifti_to_disk(file, root, image_folder, pp_ct, ct_min, ct_max):
         np_data = np.transpose(np_data, (2, 0, 1))
         for i, v_slice in enumerate(np_data):
             filename = fn + '_' + str(i) + '.png'
-            im = PIL.Image.fromarray(v_slice)
+            im = Image.fromarray(v_slice)
             im = im.convert('L')
             im.save(os.path.join(case_folder, filename))
     except Exception as e:
@@ -185,7 +187,7 @@ def extract_npz_to_disk(file, root, image_folder, pp_ct, ct_min, ct_max):
             if pp_ct:
                 arr = clip_ct_window(arr, ct_min, ct_max)
             filename = fn + '_' + str(i) + '.png'
-            im = PIL.Image.fromarray(data[arr])
+            im = Image.fromarray(data[arr])
             im.save(os.path.join(case_folder, filename))
     except Exception as e:
         print('Failed to processes file {} with error {}'.format(file, e))
@@ -214,7 +216,7 @@ class ClipCTIntensity:
         npimg = np.array(img).astype(np.int32)
         windowed_npimg = np.minimum(255, np.maximum(0, (npimg-self.ct_min)/(self.ct_max-self.ct_min)*255))
         windowed_npimg = windowed_npimg.astype(np.uint8)
-        windowed_img = PIL.Image.fromarray(windowed_npimg)
+        windowed_img = Image.fromarray(windowed_npimg)
         return windowed_img.convert('L')
 
     def __repr__(self):
