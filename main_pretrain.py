@@ -19,7 +19,7 @@ import neptune.new as neptune
 
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 import torchvision.transforms as transforms
 
 import timm
@@ -155,7 +155,7 @@ def main(args):
 
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
-        log_writer = SummaryWriter(log_dir=args.log_dir)
+        log_writer = SummaryWriter(logdir=args.log_dir)
     else:
         log_writer = None
 

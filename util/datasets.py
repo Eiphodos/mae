@@ -196,6 +196,15 @@ def clip_ct_window(np_arr, ct_min, ct_max):
     return np_arr.astype(np.uint8)
 
 
+def clip_ct_window_cube_root(np_arr, ct_min, ct_max):
+    np_arr = np.clip(np_arr, ct_min, ct_max)
+    np_arr = np.cbrt(np_arr)
+    np_min = np_arr.min()
+    np_max = np_arr.max()
+    np_arr = np.minimum(255, np.maximum(0, (np_arr - np_min) / (np_max - np_min) * 255))
+    return np_arr.astype(np.uint8)
+
+
 class ClipCTIntensity:
     def __init__(self, ct_min, ct_max):
         self.ct_min = ct_min
