@@ -143,7 +143,7 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
         file_ct_max = []
         for fn in files:
             try:
-                pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[7:9].lstrip('0'))
+                pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[10:12].lstrip('0'))
                 row = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (
                             metadata['Series_ID'] == series_id)]
                 dcm_w = row['DICOM_windows'].iloc[0]
