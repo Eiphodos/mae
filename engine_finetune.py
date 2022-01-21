@@ -38,7 +38,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     optimizer.zero_grad()
 
     if log_writer is not None:
-        print('log_dir: {}'.format(log_writer.log_dir))
+        print('log_dir: {}'.format(log_writer.logdir))
 
     for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
