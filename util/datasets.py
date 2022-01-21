@@ -11,6 +11,7 @@
 import os
 import PIL
 import numpy as np
+import pandas as pd
 import multiprocessing as mp
 from itertools import repeat
 import nibabel as nib
@@ -82,7 +83,7 @@ def build_dataset_pretrain(args):
         img_folder = os.getenv('TMPDIR')
         assert img_folder is not None
         if is_main_process():
-            extract_dataset_to_local(args.data_path, img_folder,
+            extract_dataset_to_local(args.data_path, img_folder, args.metadata_file,
                                      args.pp_ct_intensity, args.ct_intensity_min, args.ct_intensity_max)
         if is_dist_avail_and_initialized():
             dist.barrier()
@@ -131,13 +132,26 @@ def rgb_loader(path):
         return img.convert('RGB')
 
 
-def extract_dataset_to_local(root, image_folder, pp_ct, ct_min, ct_max):
+def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, ct_max):
     root, dirs, files = next(os.walk(root))
     os.makedirs(image_folder, exist_ok=True)
     nprocs = mp.cpu_count()
     pool = mp.Pool(processes=nprocs)
-    pool.starmap(extract_nifti_to_disk, zip(files, repeat(root), repeat(image_folder),
-                                            repeat(pp_ct), repeat(ct_min), repeat(ct_max)))
+    if pp_ct and (metadata_file is not ''):
+        metadata = pd.read_csv(metadata_file)
+        file_ct_min = []
+        file_ct_max = []
+        for fn in files:
+            pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[7:9].lstrip('0'))
+            dcm_w = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (metadata['Series_ID'] == series_id)]['DICOM_windows'].item()
+            n_ct_min, n_ct_max = int(dcm_w.split(', ')[0]), int(dcm_w.split(', ')[1])
+            file_ct_min.append(n_ct_min)
+            file_ct_max.append(n_ct_max)
+        pool.starmap(extract_nifti_to_disk, zip(files, repeat(root), repeat(image_folder),
+                                                repeat(pp_ct), file_ct_min, file_ct_max))
+    else:
+        pool.starmap(extract_nifti_to_disk, zip(files, repeat(root), repeat(image_folder),
+                                                repeat(pp_ct), repeat(ct_min), repeat(ct_max)))
     pool.close()
     pool.join()
 

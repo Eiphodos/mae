@@ -92,6 +92,9 @@ def get_args_parser():
 
     parser.add_argument('--use_tmp_dir', default=False, action='store_true',
                         help='If data should be extract from data_path to a local temp directory')
+    parser.add_argument('--metadata_file', default='', type=str,
+                        help='File containing metadata for pre-processing')
+
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_dir',
