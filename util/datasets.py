@@ -147,7 +147,7 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
                 row = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (
                             metadata['Series_ID'] == series_id)]
                 dcm_w = row['DICOM_windows'].iloc[0]
-                n_ct_min, n_ct_max = int(dcm_w.split(', ')[0]), int(dcm_w.split(', ')[1])
+                n_ct_min, n_ct_max = int(float(dcm_w.split(', ')[0])), int(float(dcm_w.split(', ')[1]))
                 file_ct_min.append(n_ct_min)
                 file_ct_max.append(n_ct_max)
             except IndexError as ie:
