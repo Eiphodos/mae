@@ -142,13 +142,20 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
         file_ct_min = []
         file_ct_max = []
         for fn in files:
-            pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[7:9].lstrip('0'))
-            row = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (
-                        metadata['Series_ID'] == series_id)]
-            dcm_w = row['DICOM_windows'].iloc[0]
-            n_ct_min, n_ct_max = int(dcm_w.split(', ')[0]), int(dcm_w.split(', ')[1])
-            file_ct_min.append(n_ct_min)
-            file_ct_max.append(n_ct_max)
+            try:
+                pat_idx, study_idx, series_id = int(fn[0:6].lstrip('0')), int(fn[7:9].lstrip('0')), int(fn[7:9].lstrip('0'))
+                row = metadata[(metadata['Patient_index'] == pat_idx) & (metadata['Study_index'] == study_idx) & (
+                            metadata['Series_ID'] == series_id)]
+                dcm_w = row['DICOM_windows'].iloc[0]
+                n_ct_min, n_ct_max = int(dcm_w.split(', ')[0]), int(dcm_w.split(', ')[1])
+                file_ct_min.append(n_ct_min)
+                file_ct_max.append(n_ct_max)
+            except IndexError as ie:
+                print(
+                    'Failed to read row for file {} with pat_idx {}, study_idx {}, series_id {} and error {}'.format(
+                        fn, pat_idx, study_idx, series_id, ie))
+                file_ct_min.append(ct_min)
+                file_ct_min.append(ct_max)
         pool.starmap(extract_nifti_to_disk, zip(files, repeat(root), repeat(image_folder),
                                                 repeat(pp_ct), file_ct_min, file_ct_max))
     else:
