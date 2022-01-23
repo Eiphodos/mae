@@ -173,7 +173,7 @@ def extract_nifti_to_disk(file, root, image_folder, pp_ct, ct_min, ct_max):
         data = nib.load(os.path.join(root, file))
         np_data = data.get_fdata()
         if pp_ct:
-            np_data = clip_ct_window(np_data, ct_min, ct_max)
+            np_data = clip_ct_window_cube_root(np_data, ct_min, ct_max)
         np_data = np.transpose(np_data, (2, 0, 1))
         for i, v_slice in enumerate(np_data):
             filename = fn + '_' + str(i) + '.png'
@@ -208,8 +208,8 @@ def clip_ct_window(np_arr, ct_min, ct_max):
 def clip_ct_window_cube_root(np_arr, ct_min, ct_max):
     np_arr = np.clip(np_arr, ct_min, ct_max)
     np_arr = np.cbrt(np_arr)
-    np_min = np_arr.min()
-    np_max = np_arr.max()
+    np_min = np.cbrt(ct_min)
+    np_max = np.cbrt(ct_max)
     np_arr = np.minimum(255, np.maximum(0, (np_arr - np_min) / (np_max - np_min) * 255))
     return np_arr.astype(np.uint8)
 
