@@ -13,16 +13,17 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import numpy as np
 
 from timm.models.vision_transformer import PatchEmbed, Block
 
 from util.pos_embed import get_2d_sincos_pos_embed
-
+from models.patch_emb import  PatchEmbed3D
 
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size=224, patch_size=16, in_chans=3,
+    def __init__(self, img_size=224, patch_size=16, in_chans=3, input_dim=2,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
@@ -30,7 +31,11 @@ class MaskedAutoencoderViT(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
+        self.input_dim = input_dim
+        if input_dim == 3:
+            self.patch_embed = PatchEmbed3D(vol_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        else:
+            self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -92,6 +97,7 @@ class MaskedAutoencoderViT(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
+
     def patchify(self, imgs):
         """
         imgs: (N, C, H, W)
@@ -107,6 +113,23 @@ class MaskedAutoencoderViT(nn.Module):
         x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * c))
         return x
 
+
+    def patchify_3d(self, vols):
+        """
+        vols: (N, C, D, H, W)
+        x: (N, L, patch_size**3 *C)
+        """
+        p = self.patch_embed.patch_size[0]
+        c = vols.shape[1]
+        assert vols.shape[2] == vols.shape[3] == vols.shape[4] and vols.shape[2] % p == 0
+
+        d = h = w  = vols.shape[2] // p
+        x = vols.reshape(shape=(vols.shape[0], c, d, p, h, p, w, p))
+        x = torch.einsum('ncdphqwr->ndhwpqrc', x)
+        x = x.reshape(shape=(vols.shape[0], d * h * w, p**3 * c))
+        return x
+
+
     def unpatchify(self, x):
         """
         x: (N, L, patch_size**2 *C)
@@ -120,8 +143,26 @@ class MaskedAutoencoderViT(nn.Module):
         
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
         return imgs
+
+
+    def unpatchify_3d(self, x):
+        """
+        x: (N, L, patch_size**3 *C)
+        vols: (N, C, D, H, W)
+        """
+        p = self.patch_embed.patch_size[0]
+        d = h = w = int(np.cbrt(x.shape[1]))
+        c = x.shape[2] / p ** 3
+        assert d * h * w == x.shape[1]
+        assert c * p * p * p == x.shape[2]
+
+        x = x.reshape(shape=(x.shape[0], d, h, w, p, p, p, c))
+        x = torch.einsum('ndhwpqrc->ncdphqwr', x)
+        vols = x.reshape(shape=(x.shape[0], c, d * p, h * p, w * p))
+        return vols
+
 
     def random_masking(self, x, mask_ratio):
         """
@@ -204,7 +245,10 @@ class MaskedAutoencoderViT(nn.Module):
         pred: [N, L, p*p*C]
         mask: [N, L], 0 is keep, 1 is remove, 
         """
-        target = self.patchify(imgs)
+        if self.input_dim == 3:
+            target = self.patchify_3d(imgs)
+        else:
+            target = self.patchify(imgs)
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)
