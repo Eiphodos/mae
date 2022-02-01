@@ -121,7 +121,7 @@ def build_tio_dataset(args, transform):
             subjects_list.append(subject)
     print('Number of files in resulting subject list: {}'.format(len(subjects_list)))
 
-    subjects_dataset = tio.SubjectsDataset(args.samples_per_volume * subjects_list, transform=transform)
+    subjects_dataset = tio.SubjectsDataset(subjects_list, transform=transform)
     return subjects_dataset
 
 
