@@ -11,6 +11,38 @@ import numpy as np
 
 import torch
 
+
+def get_3d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
+    """
+    grid_size: int of the grid height and width
+    return:
+    pos_embed: [grid_size*grid_size*grid_size, embed_dim] or [1+grid_size*grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
+    """
+    grid_d = np.arange(grid_size, dtype=np.float32)
+    grid_h = np.arange(grid_size, dtype=np.float32)
+    grid_w = np.arange(grid_size, dtype=np.float32)
+    grid = np.meshgrid(grid_d, grid_h, grid_w)  # here w goes first
+    grid = np.stack(grid, axis=0)
+
+    grid = grid.reshape([3, 1, grid_size, grid_size, grid_size])
+    pos_embed = get_3d_sincos_pos_embed_from_grid(embed_dim, grid)
+    if cls_token:
+        pos_embed = np.concatenate([np.zeros([1, embed_dim]), pos_embed], axis=0)
+    return pos_embed
+
+
+def get_3d_sincos_pos_embed_from_grid(embed_dim, grid):
+    assert embed_dim % 2 == 0
+
+    # use third of dimensions to encode grid_d/h/w
+    emb_d = get_1d_sincos_pos_embed_from_grid((embed_dim // 3) + embed_dim % 3, grid[0])  # (D*H*W, E/3)
+    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[0])  # (D*H*W, E/3)
+    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[1])  # (D*H*W, E/3)
+
+    emb = np.concatenate([emb_d, emb_h, emb_w], axis=1) # (H*W, D)
+    return emb
+
+
 # --------------------------------------------------------
 # 2D sine-cosine position embedding
 # References:

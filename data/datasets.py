@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import multiprocessing as mp
 from itertools import repeat
+import torchio as tio
 import nibabel as nib
 
 from torchvision import datasets, transforms
@@ -22,7 +23,8 @@ import torch.distributed as dist
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
-from .misc import is_main_process, is_dist_avail_and_initialized
+from util.misc import is_main_process, is_dist_avail_and_initialized
+from data.preprocessing import RescaleIntensityCubeRoot
 
 NPZ_SUFFIX = '.npz'
 NIFTI_SUFFIX = '.nii.gz'
@@ -78,26 +80,50 @@ def build_transform_finetune(is_train, args):
 
 def build_dataset_pretrain(args):
     transform = build_transform_pretrain(args)
-
-    if args.use_tmp_dir:
-        img_folder = os.getenv('TMPDIR')
-        assert img_folder is not None
-        if is_main_process():
-            extract_dataset_to_local(args.data_path, img_folder, args.metadata_file,
-                                     args.pp_ct_intensity, args.ct_intensity_min, args.ct_intensity_max)
-        if is_dist_avail_and_initialized():
-            dist.barrier()
+    if args.input_dim == 3:
+        dataset = build_tio_dataset(args, transform)
+        return dataset
     else:
-        img_folder = args.data_path
+        if args.use_tmp_dir:
+            img_folder = os.getenv('TMPDIR')
+            assert img_folder is not None
+            if is_main_process():
+                extract_dataset_to_local(args.data_path, img_folder, args.metadata_file,
+                                         args.pp_ct_intensity, args.ct_intensity_min, args.ct_intensity_max)
+            if is_dist_avail_and_initialized():
+                dist.barrier()
+        else:
+            img_folder = args.data_path
 
-    if args.channels == 1:
-        loader = grayscale_loader
-    elif args.channels == 3:
-        loader = rgb_loader
-    else:
-        raise ValueError('Only Images with either 1 or 3 channels are supported')
+        if args.channels == 1:
+            loader = grayscale_loader
+        elif args.channels == 3:
+            loader = rgb_loader
+        else:
+            raise ValueError('Only Images with either 1 or 3 channels are supported')
+        return datasets.folder.ImageFolder(img_folder, loader=loader, transform=transform)
 
-    return datasets.folder.ImageFolder(img_folder, loader=loader, transform=transform)
+
+def build_tio_dataset(args, transform):
+    files = os.listdir(args.data_path)
+    files = files[0:100]
+    print("Preparing torchio dataset using {} files".format(len(files)))
+    subjects_list = []
+    for f in files:
+        fp = os.path.join(args.data_path, f)
+        subject = tio.Subject(t1=tio.ScalarImage(fp))
+        org_shape = list(subject.shape)[1:]
+        if args.voxel_interpolation:
+            affine = subject['t1'].affine[np.nonzero(subject['t1'].affine)][:-1]
+            shape = np.array(np.ceil(org_shape * abs(affine) / args.voxel_spacing))
+        else:
+            shape = np.array(org_shape)
+        if (shape >= args.input_size).all():
+            subjects_list.append(subject)
+    print('Number of files in resulting subject list: {}'.format(len(subjects_list)))
+
+    subjects_dataset = tio.SubjectsDataset(args.samples_per_volume * subjects_list, transform=transform)
+    return subjects_dataset
 
 
 def build_transform_pretrain(args):
@@ -107,16 +133,32 @@ def build_transform_pretrain(args):
     else:
         mean = 0
         std = 1
-
-    custom_t = []
-    default_t = [
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)]
-    if args.transform_ct_intensity:
-        custom_t.append(ClipCTIntensity(args.ct_intensity_min, args.ct_intensity_max))
-    t = transforms.Compose(custom_t + default_t)
+    if args.input_dim == 3:
+        custom_t = []
+        default_t = [
+            tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
+            tio.RandomFlip(axes=(0, 1))
+        ]
+        if args.voxel_interpolation:
+            custom_t.append(tio.Resample(args.voxel_spacing))
+        if args.transform_ct_intensity:
+            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                     in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
+                                                     cube_rooted=True))
+        else:
+            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                     cube_rooted=False))
+        t = tio.Compose(custom_t + default_t)
+    else:
+        custom_t = []
+        default_t = [
+                transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std)]
+        if args.transform_ct_intensity:
+            custom_t.append(ClipCTIntensity(args.ct_intensity_min, args.ct_intensity_max))
+        t = transforms.Compose(custom_t + default_t)
     return t
 
 

@@ -20,16 +20,16 @@ import neptune.new as neptune
 import torch
 import torch.backends.cudnn as cudnn
 from tensorboardX import SummaryWriter
-import torchvision.transforms as transforms
+import torchio as tio
 
 import timm
 import timm.optim.optim_factory as optim_factory
 
-from util.datasets import build_dataset_pretrain
+from data.datasets import build_dataset_pretrain
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
-import models_mae
+from models import models_mae
 
 from engine_pretrain import train_one_epoch
 
@@ -51,6 +51,9 @@ def get_args_parser():
 
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
+
+    parser.add_argument('--input_dim', default=2, type=int,
+                        help='Dimension of the input, allowed values are 2 and 3')
 
     parser.add_argument('--channels', default=3, type=int,
                         help='Number of channels for the images')
@@ -85,6 +88,11 @@ def get_args_parser():
                         help='Minimum CT intensity')
     parser.add_argument('--ct_intensity_max', default=1000, type=int,
                         help='Maximum CT intensity')
+    parser.add_argument('--voxel_interpolation', default=False, action='store_true',
+                        help='If voxel spacing should be interpolated into a new space')
+    parser.add_argument('--voxel_spacing', nargs='*', type=float, default=[1.0],
+                        help='The voxel spacing to interpolate to. Can be a single value which then will be used for '
+                             'xyz or a tuple of 3 values. Example: --voxel_spacing 1, --voxel_spacing 1 1.5 2')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
@@ -94,6 +102,11 @@ def get_args_parser():
                         help='If data should be extract from data_path to a local temp directory')
     parser.add_argument('--metadata_file', default='', type=str,
                         help='File containing metadata for pre-processing')
+
+    parser.add_argument('--queue_length', default=1024, type=int,
+                        help='The max number of samples in the torchio queue')
+    parser.add_argument('--samples_per_volume', default=32, type=int,
+                        help='The number of samples generated from each volume in the torchio queue')
 
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
@@ -146,10 +159,13 @@ def main(args):
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
-        print("Sampler_train = %s" % str(sampler_train))
+        if args.input_dim == 3:
+            sampler_train = tio.UniformSampler(patch_size=args.input_size)
+        else:
+            sampler_train = torch.utils.data.DistributedSampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+            print("Sampler_train = %s" % str(sampler_train))
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
 
@@ -163,16 +179,33 @@ def main(args):
         neptune_logger = neptune.init()
         neptune_logger['parameters'] = vars(args)
 
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-    )
-    
+    if args.input_dim == 3:
+        patches_queue = tio.Queue(
+            dataset_train,
+            args.queue_length,
+            args.samples_per_volume,
+            sampler_train,
+            num_workers=args.num_workers
+        )
+
+        data_loader_train = torch.utils.data.DataLoader(
+            patches_queue,
+            batch_size=args.batch_size,
+            num_workers=0,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+    else:
+        data_loader_train = torch.utils.data.DataLoader(
+            dataset_train, sampler=sampler_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, in_chans=args.channels)
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, in_chans=args.channels, img_size=args.input_size)
 
     model.to(device)
 
@@ -205,7 +238,7 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
+        if args.distributed and args.input_dim != 3:
             data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, data_loader_train,

@@ -29,12 +29,12 @@ assert timm.__version__ == "0.3.2" # version check
 from timm.models.layers import trunc_normal_
 
 import util.misc as misc
-from util.pos_embed import interpolate_pos_embed
+from models.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.lars import LARS
 from util.crop import RandomResizedCrop
 
-import models_vit
+from models import models_vit
 
 from engine_finetune import train_one_epoch, evaluate
 

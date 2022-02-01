@@ -17,7 +17,7 @@ import numpy as np
 
 from timm.models.vision_transformer import PatchEmbed, Block
 
-from util.pos_embed import get_2d_sincos_pos_embed
+from models.pos_embed import get_2d_sincos_pos_embed, get_3d_sincos_pos_embed
 from models.patch_emb import  PatchEmbed3D
 
 class MaskedAutoencoderViT(nn.Module):
@@ -60,7 +60,8 @@ class MaskedAutoencoderViT(nn.Module):
             for i in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
+        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** input_dim * in_chans, bias=True) # decoder to patch
+
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -70,10 +71,18 @@ class MaskedAutoencoderViT(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        if self.input_dim == 3:
+            pos_embed = get_3d_sincos_pos_embed(self.pos_embed.shape[-1], int(np.cbrt(self.patch_embed.num_patches)),
+                                                cls_token=True)
+            decoder_pos_embed = get_3d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
+                                                        int(np.cbrt(self.patch_embed.num_patches)), cls_token=True)
+        else:
+            pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
+                                                cls_token=True)
+            decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
+                                                        int(self.patch_embed.num_patches ** .5), cls_token=True)
 
-        decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
         self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
@@ -116,7 +125,7 @@ class MaskedAutoencoderViT(nn.Module):
 
     def patchify_3d(self, vols):
         """
-        vols: (N, C, D, H, W)
+        vols: (N, C, H, W, D)
         x: (N, L, patch_size**3 *C)
         """
         p = self.patch_embed.patch_size[0]
@@ -124,9 +133,9 @@ class MaskedAutoencoderViT(nn.Module):
         assert vols.shape[2] == vols.shape[3] == vols.shape[4] and vols.shape[2] % p == 0
 
         d = h = w  = vols.shape[2] // p
-        x = vols.reshape(shape=(vols.shape[0], c, d, p, h, p, w, p))
-        x = torch.einsum('ncdphqwr->ndhwpqrc', x)
-        x = x.reshape(shape=(vols.shape[0], d * h * w, p**3 * c))
+        x = vols.reshape(shape=(vols.shape[0], c, h, p, w, p, d, p))
+        x = torch.einsum('nchpwqdr->nhwdpqrc', x)
+        x = x.reshape(shape=(vols.shape[0], h * w * d, p**3 * c))
         return x
 
 
@@ -150,7 +159,7 @@ class MaskedAutoencoderViT(nn.Module):
     def unpatchify_3d(self, x):
         """
         x: (N, L, patch_size**3 *C)
-        vols: (N, C, D, H, W)
+        vols: (N, C, H, W, D)
         """
         p = self.patch_embed.patch_size[0]
         d = h = w = int(np.cbrt(x.shape[1]))
@@ -158,9 +167,9 @@ class MaskedAutoencoderViT(nn.Module):
         assert d * h * w == x.shape[1]
         assert c * p * p * p == x.shape[2]
 
-        x = x.reshape(shape=(x.shape[0], d, h, w, p, p, p, c))
-        x = torch.einsum('ndhwpqrc->ncdphqwr', x)
-        vols = x.reshape(shape=(x.shape[0], c, d * p, h * p, w * p))
+        x = x.reshape(shape=(x.shape[0], h, w, d, p, p, p, c))
+        x = torch.einsum('nhwdpqrc->nchpwqdr', x)
+        vols = x.reshape(shape=(x.shape[0], c, h * p, w * p, d * p))
         return vols
 
 
@@ -194,7 +203,6 @@ class MaskedAutoencoderViT(nn.Module):
     def forward_encoder(self, x, mask_ratio):
         # embed patches
         x = self.patch_embed(x)
-
         # add pos embed w/o cls token
         x = x + self.pos_embed[:, 1:, :]
 
@@ -291,7 +299,16 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
     return model
 
 
+def mae_3d_vit_base_patch6_dec512d8b(**kwargs):
+    model = MaskedAutoencoderViT(
+        patch_size=6, embed_dim=768, depth=12, num_heads=12,
+        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        input_dim=3, **kwargs)
+    return model
+
 # set recommended archs
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_3d_vit_base_patch6 = mae_3d_vit_base_patch6_dec512d8b  # decoder: 512 dim, 8 blocks
