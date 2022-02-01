@@ -106,7 +106,6 @@ def build_dataset_pretrain(args):
 
 def build_tio_dataset(args, transform):
     files = os.listdir(args.data_path)
-    files = files[0:100]
     print("Preparing torchio dataset using {} files".format(len(files)))
     subjects_list = []
     for f in files:
