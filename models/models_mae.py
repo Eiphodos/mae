@@ -146,10 +146,11 @@ class MaskedAutoencoderViT(nn.Module):
         """
         p = self.patch_embed.patch_size[0]
         h = w = int(x.shape[1]**.5)
-        c = x.shape[2] / p**2
+        c = int(x.shape[2] / p**2)
+
         assert h * w == x.shape[1]
         assert c * p * p == x.shape[2]
-        
+
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
         imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
@@ -163,7 +164,7 @@ class MaskedAutoencoderViT(nn.Module):
         """
         p = self.patch_embed.patch_size[0]
         d = h = w = int(np.cbrt(x.shape[1]))
-        c = x.shape[2] / p ** 3
+        c = int(x.shape[2] / p ** 3)
         assert d * h * w == x.shape[1]
         assert c * p * p * p == x.shape[2]
 
@@ -199,6 +200,24 @@ class MaskedAutoencoderViT(nn.Module):
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
         return x_masked, mask, ids_restore
+
+    def get_last_selfattention(self, x):
+        # embed patches
+        x = self.patch_embed(x)
+        # add pos embed w/o cls token
+        x = x + self.pos_embed[:, 1:, :]
+
+        # append cls token
+        cls_token = self.cls_token + self.pos_embed[:, :1, :]
+        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+
+        for i, blk in enumerate(self.blocks):
+            if i < len(self.blocks) - 1:
+                x = blk(x)
+            else:
+                # return attention of the last block
+                return blk(x, return_attention=True)
 
     def forward_encoder(self, x, mask_ratio):
         # embed patches
