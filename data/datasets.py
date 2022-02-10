@@ -139,7 +139,7 @@ def build_transform_pretrain(args):
             tio.RandomFlip(axes=(0, 1))
         ]
         if args.voxel_interpolation:
-            custom_t.append(tio.Resample(args.voxel_spacing))
+            custom_t.append(tio.Resample(args.voxel_spacing[0] if len(args.voxel_spacing) < 2 else tuple(args.voxel_spacing)))
         if args.transform_ct_intensity:
             custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
                                                      in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
