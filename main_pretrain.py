@@ -52,6 +52,9 @@ def get_args_parser():
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
 
+    parser.add_argument('--patch_size', default=16, type=int,
+                        help='patch input size')
+
     parser.add_argument('--input_dim', default=2, type=int,
                         help='Dimension of the input, allowed values are 2 and 3')
 
@@ -160,7 +163,7 @@ def main(args):
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         if args.input_dim == 3:
-            sampler_train = tio.UniformSampler(patch_size=args.input_size)
+            sampler_train = tio.UniformSampler(patch_size=args.patch_size)
         else:
             sampler_train = torch.utils.data.DistributedSampler(
                 dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
@@ -205,7 +208,10 @@ def main(args):
         )
 
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, in_chans=args.channels, img_size=args.input_size)
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss,
+                                            in_chans=args.channels,
+                                            img_size=args.input_size,
+                                            patch_size=args.patch_size)
 
     model.to(device)
 
