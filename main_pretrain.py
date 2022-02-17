@@ -163,7 +163,7 @@ def main(args):
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         if args.input_dim == 3:
-            sampler_train = tio.UniformSampler(patch_size=args.patch_size)
+            sampler_train = tio.UniformSampler(patch_size=args.input_size)
         else:
             sampler_train = torch.utils.data.DistributedSampler(
                 dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
@@ -272,7 +272,8 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-    neptune_logger.stop()
+    if misc.is_main_process():
+        neptune_logger.stop()
 
 
 if __name__ == '__main__':
