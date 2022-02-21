@@ -49,11 +49,11 @@ def get_args_parser():
     parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
 
-    parser.add_argument('--input_size', default=224, type=int,
-                        help='images input size')
+    parser.add_argument('--input_size', nargs='*', default=[224], type=int,
+                        help='images input size, can be a single number or for example --input_size 128 64 32 as H*W*D')
 
-    parser.add_argument('--patch_size', default=16, type=int,
-                        help='patch input size')
+    parser.add_argument('--patch_size', nargs='*', default=[16], type=int,
+                        help='patch input size, can be a single number or for example --input_size 128 64 32 as H*W*D')
 
     parser.add_argument('--input_dim', default=2, type=int,
                         help='Dimension of the input, allowed values are 2 and 3')
@@ -154,6 +154,16 @@ def main(args):
     np.random.seed(seed)
 
     cudnn.benchmark = True
+
+    # Fix the input size if its a single value
+    if len(args.input_size) == 1:
+        args.input_size = args.input_size[0]
+    else:
+        args.input_size = tuple(args.input_size)
+    if len(args.patch_size) == 1:
+        args.patch_size = args.patch_size[0]
+    else:
+        args.patch_size = tuple(args.patch_size)
 
     # Build dataset and transform
     dataset_train = build_dataset_pretrain(args)

@@ -60,7 +60,11 @@ class MaskedAutoencoderViT(nn.Module):
             for i in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** input_dim * in_chans, bias=True) # decoder to patch
+        if input_dim == 3:
+            dec_pred_size = patch_size[0] * patch_size[1] * patch_size[2] * in_chans
+        else:
+            dec_pred_size = patch_size ** input_dim * in_chans
+        self.decoder_pred = nn.Linear(decoder_embed_dim, dec_pred_size, bias=True) # decoder to patch
 
         # --------------------------------------------------------------------------
 
