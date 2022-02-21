@@ -76,10 +76,10 @@ class MaskedAutoencoderViT(nn.Module):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
         if self.input_dim == 3:
-            pos_embed = get_3d_sincos_pos_embed(self.pos_embed.shape[-1], int(np.cbrt(self.patch_embed.num_patches)),
+            pos_embed = get_3d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size,
                                                 cls_token=True)
-            decoder_pos_embed = get_3d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
-                                                        int(np.cbrt(self.patch_embed.num_patches)), cls_token=True)
+            decoder_pos_embed = get_3d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size,
+                                                        cls_token=True)
         else:
             pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
                                                 cls_token=True)
