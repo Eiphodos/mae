@@ -117,13 +117,14 @@ class MaskedAutoencoderViT(nn.Module):
         x: (N, L, patch_size**2 *C)
         """
         p = self.patch_embed.patch_size[0]
+        n = imgs.shape[0]
         c = imgs.shape[1]
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], c, h, p, w, p))
+        x = imgs.reshape(shape=(n, c, h, p, w, p))
         x = torch.einsum('nchpwq->nhwpqc', x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * c))
+        x = x.reshape(shape=(n, h * w, p**2 * c))
         return x
 
 
@@ -132,14 +133,15 @@ class MaskedAutoencoderViT(nn.Module):
         vols: (N, C, H, W, D)
         x: (N, L, patch_size**3 *C)
         """
-        p = self.patch_embed.patch_size[0]
+        p1, p2, p3 = self.patch_embed.patch_size
+        n = vols.shape[0]
         c = vols.shape[1]
-        assert vols.shape[2] == vols.shape[3] == vols.shape[4] and vols.shape[2] % p == 0
+        assert self.patch_embed.vol_size == (vols.shape[2], vols.shape[3], vols.shape[4])
 
-        d = h = w  = vols.shape[2] // p
-        x = vols.reshape(shape=(vols.shape[0], c, h, p, w, p, d, p))
+        d, h, w = self.patch_embed.grid_size
+        x = vols.reshape(shape=(n, c, h, p1, w, p2, d, p3))
         x = torch.einsum('nchpwqdr->nhwdpqrc', x)
-        x = x.reshape(shape=(vols.shape[0], h * w * d, p**3 * c))
+        x = x.reshape(shape=(n, h * w * d, p1 * p2 * p3 * c))
         return x
 
 
