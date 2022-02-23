@@ -138,7 +138,7 @@ class MaskedAutoencoderViT(nn.Module):
         c = vols.shape[1]
         assert self.patch_embed.vol_size == (vols.shape[2], vols.shape[3], vols.shape[4])
 
-        d, h, w = self.patch_embed.grid_size
+        h, w, d = self.patch_embed.grid_size
         x = vols.reshape(shape=(n, c, h, p1, w, p2, d, p3))
         x = torch.einsum('nchpwqdr->nhwdpqrc', x)
         x = x.reshape(shape=(n, h * w * d, p1 * p2 * p3 * c))
@@ -168,15 +168,17 @@ class MaskedAutoencoderViT(nn.Module):
         x: (N, L, patch_size**3 *C)
         vols: (N, C, H, W, D)
         """
-        p = self.patch_embed.patch_size[0]
-        d = h = w = int(np.cbrt(x.shape[1]))
-        c = int(x.shape[2] / p ** 3)
+        p1, p2, p3 = self.patch_embed.patch_size
+        h, w, d = self.patch_embed.grid_size
+        c = int(x.shape[2] / (p1 * p2 * p3))
         assert d * h * w == x.shape[1]
-        assert c * p * p * p == x.shape[2]
-
-        x = x.reshape(shape=(x.shape[0], h, w, d, p, p, p, c))
+        assert c * p1 * p2 * p3 == x.shape[2]
+        print(x.shape)
+        x = x.reshape(shape=(x.shape[0], h, w, d, p1, p2, p3, c))
+        print(x.shape)
         x = torch.einsum('nhwdpqrc->nchpwqdr', x)
-        vols = x.reshape(shape=(x.shape[0], c, h * p, w * p, d * p))
+        vols = x.reshape(shape=(x.shape[0], c, h * p1, w * p2, d * p3))
+        print(vols.shape)
         return vols
 
 
