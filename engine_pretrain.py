@@ -45,7 +45,7 @@ def train_one_epoch(model: torch.nn.Module,
         if args.input_dim == 3:
             samples = samples['t1'][tio.DATA]
         else:
-            samples = (samples, _)
+            samples, _ = samples
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():
