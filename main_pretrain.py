@@ -55,6 +55,9 @@ def get_args_parser():
     parser.add_argument('--patch_size', nargs='*', default=[16], type=int,
                         help='patch input size, can be a single number or for example --input_size 128 64 32 as H*W*D')
 
+    parser.add_argument('--sample_size', nargs='*', default=[224], type=int,
+                        help='The size to sample from the original volume')
+
     parser.add_argument('--input_dim', default=2, type=int,
                         help='Dimension of the input, allowed values are 2 and 3')
 
@@ -160,6 +163,10 @@ def main(args):
         args.input_size = args.input_size[0]
     else:
         args.input_size = tuple(args.input_size)
+    if len(args.sample_size) == 1:
+        args.input_size = args.sample_size[0]
+    else:
+        args.input_size = tuple(args.sample_size)
     if len(args.patch_size) == 1:
         args.patch_size = args.patch_size[0]
     else:
@@ -173,7 +180,7 @@ def main(args):
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         if args.input_dim == 3:
-            sampler_train = tio.UniformSampler(patch_size=args.input_size)
+            sampler_train = tio.UniformSampler(patch_size=args.sample_size)
         else:
             sampler_train = torch.utils.data.DistributedSampler(
                 dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True

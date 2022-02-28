@@ -173,12 +173,9 @@ class MaskedAutoencoderViT(nn.Module):
         c = int(x.shape[2] / (p1 * p2 * p3))
         assert d * h * w == x.shape[1]
         assert c * p1 * p2 * p3 == x.shape[2]
-        print(x.shape)
         x = x.reshape(shape=(x.shape[0], h, w, d, p1, p2, p3, c))
-        print(x.shape)
         x = torch.einsum('nhwdpqrc->nchpwqdr', x)
         vols = x.reshape(shape=(x.shape[0], c, h * p1, w * p2, d * p3))
-        print(vols.shape)
         return vols
 
 

@@ -25,6 +25,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from util.misc import is_main_process, is_dist_avail_and_initialized
 from data.preprocessing import RescaleIntensityCubeRoot
+from data.transforms import TioRandomResizedCropOrPad
 
 NPZ_SUFFIX = '.npz'
 NIFTI_SUFFIX = '.nii.gz'
@@ -135,7 +136,8 @@ def build_transform_pretrain(args):
     if args.input_dim == 3:
         custom_t = []
         default_t = [
-            tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
+            TioRandomResizedCropOrPad(args.input_size, scale=(0.2, 1.0))
+            #tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
             tio.RandomFlip(axes=(0, 1))
         ]
         if args.voxel_interpolation:
