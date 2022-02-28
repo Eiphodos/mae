@@ -136,7 +136,7 @@ def build_transform_pretrain(args):
     if args.input_dim == 3:
         custom_t = []
         default_t = [
-            TioRandomResizedCropOrPad(args.input_size, scale=(0.2, 1.0))
+            TioRandomResizedCropOrPad(args.input_size, scale=(0.2, 1.0)),
             #tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
             tio.RandomFlip(axes=(0, 1))
         ]
