@@ -8,7 +8,10 @@ class TioRandomResizedCropOrPad(tio.SpatialTransform):
             target_shape,
             scale=(0.2, 1.0),
             image_interpolation='linear',
-            label_interpolation='nearest'):
+            label_interpolation='nearest',
+            **kwargs
+            ):
+        super().__init__(**kwargs)
         self.target_shape = target_shape
         self.scale = scale
         self.image_interpolation = image_interpolation
