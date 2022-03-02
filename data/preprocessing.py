@@ -27,6 +27,52 @@ class ClipCTIntensity:
         return np_arr
 
 
+class ZNormalizationFixed(NormalizationTransform):
+    """Subtract mean and divide by standard deviation.
+
+    Args:
+        masking_method: See
+            :class:`~torchio.transforms.preprocessing.intensity.NormalizationTransform`.
+        **kwargs: See :class:`~torchio.transforms.Transform` for additional
+            keyword arguments.
+    """
+    def __init__(
+            self,
+            mean,
+            std,
+            masking_method: TypeMaskingMethod = None,
+            **kwargs
+            ):
+        super().__init__(masking_method=masking_method, **kwargs)
+        self.args_names = ('masking_method',)
+        self.mean = mean
+        self.std = std
+
+    def apply_normalization(
+            self,
+            subject: Subject,
+            image_name: str,
+            mask: torch.Tensor,
+            ) -> None:
+        image = subject[image_name]
+        standardized = self.znorm(image.data)
+        if standardized is None:
+            message = (
+                'Standard deviation is 0 for masked values'
+                f' in image "{image_name}" ({image.path})'
+            )
+            raise RuntimeError(message)
+        image.set_data(standardized)
+
+    def znorm(self, tensor: torch.Tensor) -> torch.Tensor:
+        tensor = tensor.clone().float()
+        if self.std == 0:
+            return None
+        tensor -= self.mean
+        tensor /= self.std
+        return tensor
+
+
 class RescaleIntensityCubeRoot(NormalizationTransform):
     """Rescale intensity values to a certain range.
 
