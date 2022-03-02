@@ -53,7 +53,7 @@ def get_args_parser():
                         help='images input size, can be a single number or for example --input_size 128 64 32 as H*W*D')
 
     parser.add_argument('--patch_size', nargs='*', default=[16], type=int,
-                        help='patch input size, can be a single number or for example --input_size 128 64 32 as H*W*D')
+                        help='patch input size, can be a single number or for example --patch_size 128 64 32 as H*W*D')
 
     parser.add_argument('--sample_size', nargs='*', default=[224], type=int,
                         help='The size to sample from the original volume')

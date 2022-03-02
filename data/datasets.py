@@ -24,7 +24,7 @@ from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from util.misc import is_main_process, is_dist_avail_and_initialized
-from data.preprocessing import RescaleIntensityCubeRoot
+from data.preprocessing import RescaleIntensityCubeRoot, ZNormalizationFixed
 from data.transforms import TioRandomResizedCropOrPad
 
 NPZ_SUFFIX = '.npz'
@@ -131,14 +131,16 @@ def build_transform_pretrain(args):
         mean = IMAGENET_DEFAULT_MEAN
         std = IMAGENET_DEFAULT_STD
     else:
-        mean = 0
-        std = 1
+        # DeepLesion mean and std
+        mean = 0.1923
+        std = 0.2757
     if args.input_dim == 3:
         custom_t = []
         default_t = [
             TioRandomResizedCropOrPad(args.input_size, scale=(0.2, 1.0)),
-            #tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
-            tio.RandomFlip(axes=(0, 1))
+            tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
+            tio.RandomFlip(axes=(0, 1)),
+            ZNormalizationFixed(mean, std)
         ]
         if args.voxel_interpolation:
             custom_t.append(tio.Resample(args.voxel_spacing[0] if len(args.voxel_spacing) < 2 else tuple(args.voxel_spacing)))
