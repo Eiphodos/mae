@@ -69,6 +69,10 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
+        if self.norm_pix_loss:
+            self.patch_mean_pred = nn.Linear(decoder_embed_dim, 1, bias=True)
+            self.epsilon_patch_mean = 1
+
 
         self.initialize_weights()
 
@@ -258,6 +262,13 @@ class MaskedAutoencoderViT(nn.Module):
         # add pos embed
         x = x + self.decoder_pos_embed
 
+        if self.norm_pix_loss:
+            pm_pred = self.patch_mean_pred(x)
+            # remove cls token
+            pm_pred = pm_pred[:, 1:, :]
+        else:
+            pm_pred = None
+
         # apply Transformer blocks
         for blk in self.decoder_blocks:
             x = blk(x)
@@ -269,9 +280,9 @@ class MaskedAutoencoderViT(nn.Module):
         # remove cls token
         x = x[:, 1:, :]
 
-        return x
+        return x, pm_pred
 
-    def forward_loss(self, imgs, pred, mask):
+    def forward_loss(self, imgs, pred, mask, patch_mean_pred=None):
         """
         imgs: [N, C, H, W]
         pred: [N, L, p*p*C]
@@ -286,16 +297,25 @@ class MaskedAutoencoderViT(nn.Module):
             var = target.var(dim=-1, keepdim=True)
             target = (target - mean) / (var + 1.e-6)**.5
 
-        loss = (pred - target) ** 2
-        loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
+            loss_patch_mean = (patch_mean_pred.squeeze(-1) - mean.squeeze(-1)) ** 2
+            loss_patch_mean = (loss_patch_mean * mask).sum() / mask.sum()
 
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+            loss_pixel = (pred - target) ** 2
+            loss_pixel = loss_pixel.mean(dim=-1).mean()  # [N, L], mean loss per patch
+            loss_pixel = (loss_pixel * mask).sum() / mask.sum()  # mean loss on removed patches
+
+            loss = loss_pixel + self.epsilon_patch_mean*loss_patch_mean
+
+        else:
+            loss = (pred - target) ** 2
+            loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
+            loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C]
-        loss = self.forward_loss(imgs, pred, mask)
+        pred, pm_pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C], [N, L,
+        loss = self.forward_loss(imgs, pred, mask, patch_mean_pred=pm_pred)
         return loss, pred, mask
 
 
