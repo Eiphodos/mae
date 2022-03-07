@@ -26,7 +26,8 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3, input_dim=2,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
+                 mean_patch_loss=False):
         super().__init__()
 
         # --------------------------------------------------------------------------
@@ -69,9 +70,12 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
-        if self.norm_pix_loss:
+        self.mean_patch_loss = mean_patch_loss
+        if self.mean_patch_loss and not self.norm_pix_loss:
+            raise ValueError('Mean patch loss must be used with normalized pixel loss')
+        if self.mean_patch_loss:
             self.patch_mean_pred = nn.Linear(decoder_embed_dim, 1, bias=True)
-            self.epsilon_patch_mean = 1
+            self.epsilon_patch_mean = 0.25
 
 
         self.initialize_weights()
@@ -262,7 +266,7 @@ class MaskedAutoencoderViT(nn.Module):
         # add pos embed
         x = x + self.decoder_pos_embed
 
-        if self.norm_pix_loss:
+        if self.mean_patch_loss:
             pm_pred = self.patch_mean_pred(x)
             # remove cls token
             pm_pred = pm_pred[:, 1:, :]
@@ -297,14 +301,18 @@ class MaskedAutoencoderViT(nn.Module):
             var = target.var(dim=-1, keepdim=True)
             target = (target - mean) / (var + 1.e-6)**.5
 
-            loss_patch_mean = (patch_mean_pred.squeeze(-1) - mean.squeeze(-1)) ** 2
-            loss_patch_mean = (loss_patch_mean * mask).sum() / mask.sum()
+            if self.mean_patch_loss:
+                loss_patch_mean = (patch_mean_pred.squeeze(-1) - mean.squeeze(-1)) ** 2
+                loss_patch_mean = (loss_patch_mean * mask).sum() / mask.sum()
+                loss_patch_mean = self.epsilon_patch_mean*loss_patch_mean
+            else:
+                loss_patch_mean = 0
 
             loss_pixel = (pred - target) ** 2
-            loss_pixel = loss_pixel.mean(dim=-1).mean()  # [N, L], mean loss per patch
+            loss_pixel = loss_pixel.mean(dim=-1) # [N, L], mean loss per patch
             loss_pixel = (loss_pixel * mask).sum() / mask.sum()  # mean loss on removed patches
 
-            loss = loss_pixel + self.epsilon_patch_mean*loss_patch_mean
+            loss = loss_pixel + loss_patch_mean
 
         else:
             loss = (pred - target) ** 2

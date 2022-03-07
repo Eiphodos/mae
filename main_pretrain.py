@@ -72,6 +72,10 @@ def get_args_parser():
                         help='Use (per-patch) normalized pixels as targets for computing loss')
     parser.set_defaults(norm_pix_loss=False)
 
+    parser.add_argument('--mean_patch_loss', action='store_true',
+                        help='Add additional an additiona loss term for the mean of each patch')
+    parser.set_defaults(mean_patch_loss=False)
+
     # Optimizer parameters
     parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
@@ -228,6 +232,7 @@ def main(args):
 
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss,
+                                            mean_patch_loss=args.mean_patch_loss,
                                             in_chans=args.channels,
                                             img_size=args.input_size,
                                             patch_size=args.patch_size)
