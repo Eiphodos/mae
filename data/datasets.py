@@ -89,10 +89,13 @@ def build_dataset_pretrain(args):
             img_folder = os.getenv('TMPDIR')
             assert img_folder is not None
             if is_main_process():
+                print("Extracting dataset to {} on rank {}".format(img_folder, args.rank))
                 extract_dataset_to_local(args.data_path, img_folder, args.metadata_file,
                                          args.pp_ct_intensity, args.ct_intensity_min, args.ct_intensity_max)
+                files = os.listdir(img_folder)
+                print("Finished extracting {} files in dataset on rank {}".format(len(files), args.rank))
             if is_dist_avail_and_initialized():
-                dist.barrier()
+                dist.barrier(args.rank)
         else:
             img_folder = args.data_path
 
