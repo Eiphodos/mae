@@ -95,7 +95,7 @@ def build_dataset_pretrain(args):
                 files = os.listdir(img_folder)
                 print("Finished extracting {} files in dataset on rank {}".format(len(files), args.rank))
             if is_dist_avail_and_initialized():
-                dist.barrier(args.rank)
+                dist.barrier(device_ids=[args.rank])
         else:
             img_folder = args.data_path
 
