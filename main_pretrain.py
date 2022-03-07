@@ -21,6 +21,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from tensorboardX import SummaryWriter
 import torchio as tio
+from torch.distributed.elastic.multiprocessing.errors import record
 
 import timm
 import timm.optim.optim_factory as optim_factory
@@ -143,6 +144,7 @@ def get_args_parser():
     return parser
 
 
+@record
 def main(args):
     misc.init_distributed_mode(args)
 
