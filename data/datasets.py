@@ -135,8 +135,8 @@ def build_transform_pretrain(args):
         std = IMAGENET_DEFAULT_STD
     else:
         # DeepLesion mean and std
-        mean = 0.1923
-        std = 0.2757
+        mean = 0.1943
+        std = 0.2786
     if args.input_dim == 3:
         custom_t = []
         default_t = [
@@ -185,7 +185,7 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
     os.makedirs(image_folder, exist_ok=True)
     nprocs = mp.cpu_count()
     pool = mp.Pool(processes=nprocs)
-    if pp_ct and (metadata_file is not ''):
+    if pp_ct and (metadata_file != ''):
         metadata = pd.read_csv(metadata_file)
         file_ct_min = []
         file_ct_max = []
