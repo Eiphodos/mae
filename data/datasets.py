@@ -87,6 +87,7 @@ def build_dataset_pretrain(args):
     else:
         if args.use_tmp_dir:
             img_folder = os.getenv('TMPDIR')
+            img_folder = os.path.join(img_folder, 'dataset')
             assert img_folder is not None
             if is_main_process():
                 print("Extracting dataset to {} on rank {}".format(img_folder, args.rank))
