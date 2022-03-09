@@ -77,6 +77,12 @@ def train_one_epoch(model: torch.nn.Module,
             lr = optimizer.param_groups[0]["lr"]
             metric_logger.update(lr=lr)
 
+            if args.debug:
+                # Track gradient sum
+                grads = [x.grad for x in model.parameters() if x.requires_grad is True]
+                grad_s = torch.Tensor([g.sum() for g in grads]).sum()
+                metric_logger.update(grad_sum=grad_s)
+
             loss_value_reduce = misc.all_reduce_mean(loss_value)
             if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
                 """ We use epoch_1000x as the x-axis in tensorboard.
@@ -85,12 +91,6 @@ def train_one_epoch(model: torch.nn.Module,
                 epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
                 log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
                 log_writer.add_scalar('lr', lr, epoch_1000x)
-                if args.debug:
-                    # Track gradient sum
-                    grads = [x.grad for x in model.parameters() if x.requires_grad is True]
-                    grad_sum = torch.Tensor([g.sum() for g in grads]).sum()
-                    log_writer.add_scalar('grad_sum', grad_sum, epoch_1000x)
-
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
