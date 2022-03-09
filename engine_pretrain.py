@@ -13,6 +13,7 @@ import sys
 from typing import Iterable
 
 import torch
+from torch import autograd
 import torchio as tio
 
 import util.misc as misc
@@ -40,47 +41,51 @@ def train_one_epoch(model: torch.nn.Module,
         print('log_dir: {}'.format(log_writer.logdir))
 
     for data_iter_step, samples in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        with autograd.detect_anomaly(args.debug):
+            # we use a per iteration (instead of per epoch) lr scheduler
+            if data_iter_step % accum_iter == 0:
+                lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+            if args.input_dim == 3:
+                samples = samples['t1'][tio.DATA]
+            else:
+                samples, _ = samples
+            samples = samples.to(device, non_blocking=True)
 
-        # we use a per iteration (instead of per epoch) lr scheduler
-        if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
-        if args.input_dim == 3:
-            samples = samples['t1'][tio.DATA]
-        else:
-            samples, _ = samples
-        samples = samples.to(device, non_blocking=True)
+            with torch.cuda.amp.autocast():
+                loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
 
-        with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+            loss_value = loss.item()
 
-        loss_value = loss.item()
+            if not math.isfinite(loss_value):
+                print("Loss is {}, stopping training".format(loss_value))
+                sys.exit(1)
 
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            sys.exit(1)
+            acc_loss = loss / accum_iter
+            loss = acc_loss
+            loss_scaler(loss, optimizer, parameters=model.parameters(),
+                        update_grad=(data_iter_step + 1) % accum_iter == 0)
+            if (data_iter_step + 1) % accum_iter == 0:
+                optimizer.zero_grad()
 
-        acc_loss = loss / accum_iter
-        loss = acc_loss
-        loss_scaler(loss, optimizer, parameters=model.parameters(),
-                    update_grad=(data_iter_step + 1) % accum_iter == 0)
-        if (data_iter_step + 1) % accum_iter == 0:
-            optimizer.zero_grad()
+            torch.cuda.synchronize()
 
-        torch.cuda.synchronize()
+            metric_logger.update(loss=loss_value)
 
-        metric_logger.update(loss=loss_value)
+            lr = optimizer.param_groups[0]["lr"]
+            metric_logger.update(lr=lr)
 
-        lr = optimizer.param_groups[0]["lr"]
-        metric_logger.update(lr=lr)
-
-        loss_value_reduce = misc.all_reduce_mean(loss_value)
-        if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
-            """ We use epoch_1000x as the x-axis in tensorboard.
-            This calibrates different curves when batch size changes.
-            """
-            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('lr', lr, epoch_1000x)
+            loss_value_reduce = misc.all_reduce_mean(loss_value)
+            if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
+                """ We use epoch_1000x as the x-axis in tensorboard.
+                This calibrates different curves when batch size changes.
+                """
+                epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
+                log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
+                log_writer.add_scalar('lr', lr, epoch_1000x)
+                if args.debug:
+                    # Track gradient sum
+                    grad_sum = torch.Tensor([x.grad for x in model.parameters()]).sum()
+                    log_writer.add_scalar('grad_sum', grad_sum, epoch_1000x)
 
 
     # gather the stats from all processes
