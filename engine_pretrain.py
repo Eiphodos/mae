@@ -41,7 +41,8 @@ def train_one_epoch(model: torch.nn.Module,
         print('log_dir: {}'.format(log_writer.logdir))
 
     for data_iter_step, samples in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
-        with autograd.detect_anomaly(args.debug):
+        autograd.set_detect_anomaly(args.debug)
+        with autograd.detect_anomaly():
             # we use a per iteration (instead of per epoch) lr scheduler
             if data_iter_step % accum_iter == 0:
                 lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
