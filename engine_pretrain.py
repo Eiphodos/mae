@@ -85,7 +85,8 @@ def train_one_epoch(model: torch.nn.Module,
                 log_writer.add_scalar('lr', lr, epoch_1000x)
                 if args.debug:
                     # Track gradient sum
-                    grad_sum = torch.Tensor([x.grad for x in model.parameters()]).sum()
+                    grads = [x.grad for x in model.parameters() if x.requires_grad is True]
+                    grad_sum = torch.Tensor([g.sum() for g in grads]).sum()
                     log_writer.add_scalar('grad_sum', grad_sum, epoch_1000x)
 
 
