@@ -185,6 +185,7 @@ def extract_dataset_to_local(root, image_folder, metadata_file, pp_ct, ct_min, c
     root, dirs, files = next(os.walk(root))
     os.makedirs(image_folder, exist_ok=True)
     nprocs = mp.cpu_count()
+    nprocs = min(10, nprocs)
     pool = mp.Pool(processes=nprocs)
     if pp_ct and (metadata_file != ''):
         metadata = pd.read_csv(metadata_file)

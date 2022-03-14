@@ -208,6 +208,12 @@ def main(args):
     if global_rank == 0:
         neptune_logger = neptune.init()
         neptune_logger['parameters'] = vars(args)
+        tags = ['Pretraining', 'MAE', 'Official', 'DeepLesion', 'ViT']
+        if args.input_dim == 3:
+            tags.append('3D')
+        else:
+            tags.append('2D')
+        neptune_logger['sys/tags'].add(tags)
 
     if args.input_dim == 3:
         patches_queue = tio.Queue(
