@@ -31,7 +31,8 @@ def train_one_epoch(model: torch.nn.Module,
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     if args.debug:
-        metric_logger.add_meter('grad_sum', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+        metric_logger.add_meter('grad_max', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+        metric_logger.add_meter('grad_min', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 20
 
@@ -79,8 +80,10 @@ def train_one_epoch(model: torch.nn.Module,
         if args.debug:
             # Track gradient sum
             grads = [x.grad for x in model.parameters() if x.requires_grad is True]
-            grad_s = torch.Tensor([g.sum() for g in grads]).sum()
-            metric_logger.update(grad_sum=grad_s)
+            grad_max = torch.Tensor([g.max() for g in grads]).max()
+            grad_min = torch.Tensor([g.min() for g in grads]).min()
+            metric_logger.update(grad_max=grad_max)
+            metric_logger.update(grad_min=grad_min)
 
         loss_value_reduce = misc.all_reduce_mean(loss_value)
         if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
