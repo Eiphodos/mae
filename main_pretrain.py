@@ -108,6 +108,10 @@ def get_args_parser():
     parser.add_argument('--voxel_spacing', nargs='*', type=float, default=[1.0],
                         help='The voxel spacing to interpolate to. Can be a single value which then will be used for '
                              'xyz or a tuple of 3 values. Example: --voxel_spacing 1, --voxel_spacing 1 1.5 2')
+    parser.add_argument('--norm_mean', default=0.1943, type=float,
+                        help='Mean for normalization')
+    parser.add_argument('--norm_std', default=0.2786, type=float,
+                        help='Standard deviation for normalization')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,

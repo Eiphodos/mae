@@ -136,8 +136,8 @@ def build_transform_pretrain(args):
         std = IMAGENET_DEFAULT_STD
     else:
         # DeepLesion mean and std
-        mean = 0.1943
-        std = 0.2786
+        mean = args.norm_mean
+        std = args.norm_std
     if args.input_dim == 3:
         custom_t = []
         default_t = [
