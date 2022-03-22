@@ -149,12 +149,20 @@ def build_transform_pretrain(args):
         if args.voxel_interpolation:
             custom_t.append(tio.Resample(args.voxel_spacing[0] if len(args.voxel_spacing) < 2 else tuple(args.voxel_spacing)))
         if args.transform_ct_intensity:
-            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
-                                                     in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
-                                                     cube_rooted=True))
+            if args.cube_root_ct:
+                custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                         in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
+                                                         cube_rooted=True))
+            else:
+                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1),
+                                                     in_min_max=(args.ct_intensity_min, args.ct_intensity_max)))
+
         else:
-            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
-                                                     cube_rooted=False))
+            if args.cube_root_ct:
+                custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                         cube_rooted=False))
+            else:
+                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1)))
         t = tio.Compose(custom_t + default_t)
     else:
         custom_t = []

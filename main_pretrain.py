@@ -99,6 +99,8 @@ def get_args_parser():
                         help='If input images should be clipped to a set intensity during preprocessing')
     parser.add_argument('--transform_ct_intensity', default=False, action='store_true',
                         help='If input images should be clipped to a set intensity during transform')
+    parser.add_argument('--cube_root_ct', default=False, action='store_true',
+                        help='If the ct intensity should be cube rooted before scaled into the correct span')
     parser.add_argument('--ct_intensity_min', default=-1000, type=int,
                         help='Minimum CT intensity')
     parser.add_argument('--ct_intensity_max', default=1000, type=int,
