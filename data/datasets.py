@@ -159,9 +159,10 @@ def build_transform_pretrain(args):
         else:
             if args.cube_root_ct:
                 custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                         percentiles=(5, 95),
                                                          cube_rooted=False))
             else:
-                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1)))
+                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(5, 95)))
         t = tio.Compose(custom_t + default_t)
     else:
         custom_t = []
