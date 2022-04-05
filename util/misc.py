@@ -247,7 +247,8 @@ def init_distributed_mode(args):
         devc = torch.cuda.device_count()
         print("Slurm rank is: {} and device count is: {}".format(srank, devc))
     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                         world_size=args.world_size, rank=args.rank)
+                                         world_size=args.world_size, rank=args.rank,
+                                         timeout=datetime.timedelta(seconds=5400))
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
 
