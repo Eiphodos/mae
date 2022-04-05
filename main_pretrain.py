@@ -80,6 +80,11 @@ def get_args_parser():
                         help='Add additional an additiona loss term for the mean of each patch')
     parser.set_defaults(mean_patch_loss=False)
 
+    parser.add_argument('--mixed_precision', action='store_true',
+                        help='Use mixed precision for model, operations and input')
+    parser.set_defaults(mixed_precision=False)
+
+
     # Optimizer parameters
     parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
@@ -277,7 +282,7 @@ def main(args):
     param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
-    loss_scaler = NativeScaler()
+    loss_scaler = NativeScaler(enabled=args.mixed_precision)
 
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
