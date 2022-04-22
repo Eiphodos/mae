@@ -120,8 +120,7 @@ def create_tio_subjects(args, files, dataset):
     print("Preparing torchio dataset using {} files for dataset {}".format(len(files), dataset))
     subjects_list = []
     for f in files:
-        fp = os.path.join(args.data_path, f)
-        subject = tio.Subject(t1=tio.ScalarImage(fp))
+        subject = tio.Subject(t1=tio.ScalarImage(f))
         org_shape = list(subject.shape)[1:]
         if args.voxel_interpolation:
             affine = subject['t1'].affine[np.nonzero(subject['t1'].affine)][:-1]
@@ -186,37 +185,37 @@ def prepare_datasets(args):
     for ds in args.datasets:
         if ds == 'deeplesion':
             ds_root = os.path.join(args.data_path, 'DeepLesion')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'covid19':
             ds_root = os.path.join(args.data_path, 'Covid19/CT-Covid-19-August2020')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
             
             ds_root = os.path.join(args.data_path, 'Covid19/CTImagesInCOVID19')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'lidc_idri':
             ds_root = os.path.join(args.data_path, 'LIDC-IDRI-nifti')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'hnscc':
             ds_root = os.path.join(args.data_path, 'HNSCC-nifti')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'colon':
             ds_root = os.path.join(args.data_path, 'CT-Colon-nifti')
-            files = os.listdir(ds_root)
+            files = glob(os.path.join(ds_root, '**'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'luna16':
             ds_root = os.path.join(args.data_path, 'LUNA16/Data/')
-            files = glob(ds_root + '*.mhd')
+            files = glob(os.path.join(ds_root, '*.mhd'))
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
 
