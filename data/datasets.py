@@ -123,8 +123,9 @@ def create_tio_subjects(args, files, dataset):
         subject = tio.Subject(t1=tio.ScalarImage(f))
         org_shape = list(subject.shape)[1:]
         if args.voxel_interpolation:
-            affine = subject['t1'].affine[np.nonzero(subject['t1'].affine)][:-1]
-            shape = np.array(np.ceil(org_shape * abs(affine) / args.voxel_spacing))
+            spatial_affine = subject['t1'].affine[0:3, 0:3]
+            nz_affine = spatial_affine[np.nonzero(spatial_affine)]
+            shape = np.array(np.ceil(org_shape * abs(nz_affine) / args.voxel_spacing))
         else:
             shape = np.array(org_shape)
         if (shape >= args.input_size).all():
