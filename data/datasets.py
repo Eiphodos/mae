@@ -120,7 +120,11 @@ def create_tio_subjects(args, files, dataset):
     print("Preparing torchio dataset using {} files for dataset {}".format(len(files), dataset))
     subjects_list = []
     for f in files:
-        subject = tio.Subject(t1=tio.ScalarImage(f))
+        try:
+            subject = tio.Subject(t1=tio.ScalarImage(f))
+        except RuntimeError as re:
+            print('Failed to create subject for file {} with error {}'.format(f, re))
+            continue
         org_shape = list(subject.shape)[1:]
         if args.voxel_interpolation:
             spatial_affine = subject['t1'].affine[0:3, 0:3]
