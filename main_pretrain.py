@@ -123,6 +123,7 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
                         help='dataset path')
+    parser.add_argument('--datasets', nargs='*', help='The datasets used in pretraining.')
 
     parser.add_argument('--use_tmp_dir', default=False, action='store_true',
                         help='If data should be extract from data_path to a local temp directory')

@@ -110,7 +110,11 @@ def build_dataset_pretrain(args):
 
 
 def build_tio_dataset(args, transform):
-    files = os.listdir(args.data_path)
+    subjects = prepare_datasets(args)
+    subjects_dataset = tio.SubjectsDataset(subjects, transform=transform)
+    return subjects_dataset
+
+def create_tio_subjects(files):
     print("Preparing torchio dataset using {} files".format(len(files)))
     subjects_list = []
     for f in files:
@@ -125,9 +129,7 @@ def build_tio_dataset(args, transform):
         if (shape >= args.input_size).all():
             subjects_list.append(subject)
     print('Number of files in resulting subject list: {}'.format(len(subjects_list)))
-
-    subjects_dataset = tio.SubjectsDataset(subjects_list, transform=transform)
-    return subjects_dataset
+    return subjects_list
 
 
 def build_transform_pretrain(args):
@@ -175,6 +177,55 @@ def build_transform_pretrain(args):
             custom_t.append(ClipCTIntensity(args.ct_intensity_min, args.ct_intensity_max))
         t = transforms.Compose(custom_t + default_t)
     return t
+
+def prepare_datasets(args):
+    all_ds_subjects = []
+    for ds in args.datasets:
+        if ds == 'deeplesion':
+            ds_root = os.path.join(args.data_path, 'DeepLesion')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for DeepLesion")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for DeepLesion")
+            all_ds_subjects.append(subjects)
+        elif ds == 'covid19':
+            ds_root = os.path.join(args.data_path, 'Covid19/CT-Covid-19-August2020')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for Covid19 August")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for Covid19 August")
+            all_ds_subjects.append(subjects)
+            ds_root = os.path.join(args.data_path, 'Covid19/CTImagesInCOVID19')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for Covid19 Other")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for Covid19 Other")
+            all_ds_subjects.append(subjects)
+        elif ds == 'lidc-idri':
+            #TODO - Filter CT data using metadata? Merge Dicom files?
+            ds_root = os.path.join(args.data_path, 'LIDC-IDRI')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for LIDC-IDRI")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for LIDC-IDRI")
+            all_ds_subjects.append(subjects)
+        elif ds == 'hnscc':
+            #TODO - Filter CT data using metadata? Merge Dicom files?
+            ds_root = os.path.join(args.data_path, 'HNSCC')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for HNSCC")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for HNSCC")
+            all_ds_subjects.append(subjects)
+        elif ds == 'colon':
+            #TODO - Unknown
+            ds_root = os.path.join(args.data_path, 'Colon')
+            files = os.listdir(ds_root)
+            print("Creating torchio subjects for Colon")
+            subjects = create_tio_subjects(files)
+            print("Completed torchio subjects for Colon")
+            all_ds_subjects.append(subjects)
+    return all_ds_subjects
 
 
 def grayscale_loader(path):

@@ -350,3 +350,7 @@ def log_to_neptune(neptune_logger, metric_dict):
     for k, v in metric_dict.items():
         if not k == 'epoch':
             neptune_logger[k].log(v, epoch)
+
+def get_files_in_subfolders(folder):
+    #TODO Create this
+    return os.listdir(folder)
