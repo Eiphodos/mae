@@ -116,12 +116,12 @@ def build_tio_dataset(args, transform):
     return subjects_dataset
 
 
-def create_tio_subjects(args, files, dataset):
+def create_tio_subjects(args, files, dataset, reader):
     print("Preparing torchio dataset using {} files for dataset {}".format(len(files), dataset))
     subjects_list = []
     for f in files:
         try:
-            subject = tio.Subject(t1=tio.ScalarImage(f))
+            subject = tio.Subject(t1=tio.ScalarImage(f, reader=reader))
         except RuntimeError as re:
             print('Failed to create subject for file {} with error {}'.format(f, re))
             continue
@@ -188,40 +188,42 @@ def build_transform_pretrain(args):
 def prepare_datasets(args):
     all_ds_subjects = []
     for ds in args.datasets:
+        reader = tio.io._read_nibabel
         if ds == 'deeplesion':
             ds_root = os.path.join(args.data_path, 'DeepLesion')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'covid19':
             ds_root = os.path.join(args.data_path, 'Covid19/CT-Covid-19-August2020')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
             
             ds_root = os.path.join(args.data_path, 'Covid19/CTImagesInCOVID19')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'lidc_idri':
             ds_root = os.path.join(args.data_path, 'LIDC-IDRI-nifti')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'hnscc':
             ds_root = os.path.join(args.data_path, 'HNSCC-nifti')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'colon':
             ds_root = os.path.join(args.data_path, 'CT-Colon-nifti')
             files = glob(os.path.join(ds_root, '**'))
-            subjects = create_tio_subjects(args, files, ds)
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'luna16':
             ds_root = os.path.join(args.data_path, 'LUNA16/Data/')
             files = glob(os.path.join(ds_root, '*.mhd'))
-            subjects = create_tio_subjects(args, files, ds)
+            reader = tio.io.read_image
+            subjects = create_tio_subjects(args, files, ds, reader)
             all_ds_subjects = all_ds_subjects + subjects
 
     return all_ds_subjects
