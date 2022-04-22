@@ -199,7 +199,7 @@ def prepare_datasets(args):
             files = os.listdir(ds_root)
             subjects = create_tio_subjects(args, files, ds)
             all_ds_subjects = all_ds_subjects + subjects
-        elif ds == 'lidc-idri':
+        elif ds == 'lidc_idri':
             ds_root = os.path.join(args.data_path, 'LIDC-IDRI-nifti')
             files = os.listdir(ds_root)
             subjects = create_tio_subjects(args, files, ds)
