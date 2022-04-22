@@ -9,6 +9,7 @@
 # --------------------------------------------------------
 
 import os
+from glob import glob
 from PIL import Image
 import numpy as np
 import pandas as pd
@@ -114,8 +115,9 @@ def build_tio_dataset(args, transform):
     subjects_dataset = tio.SubjectsDataset(subjects, transform=transform)
     return subjects_dataset
 
-def create_tio_subjects(files):
-    print("Preparing torchio dataset using {} files".format(len(files)))
+
+def create_tio_subjects(args, files, dataset):
+    print("Preparing torchio dataset using {} files for dataset {}".format(len(files), dataset))
     subjects_list = []
     for f in files:
         fp = os.path.join(args.data_path, f)
@@ -128,7 +130,7 @@ def create_tio_subjects(files):
             shape = np.array(org_shape)
         if (shape >= args.input_size).all():
             subjects_list.append(subject)
-    print('Number of files in resulting subject list: {}'.format(len(subjects_list)))
+    print('Number of files for dataset {} in resulting subject list: {} '.format(dataset, len(subjects_list)))
     return subjects_list
 
 
@@ -178,53 +180,46 @@ def build_transform_pretrain(args):
         t = transforms.Compose(custom_t + default_t)
     return t
 
+
 def prepare_datasets(args):
     all_ds_subjects = []
     for ds in args.datasets:
         if ds == 'deeplesion':
             ds_root = os.path.join(args.data_path, 'DeepLesion')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for DeepLesion")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for DeepLesion")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'covid19':
             ds_root = os.path.join(args.data_path, 'Covid19/CT-Covid-19-August2020')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for Covid19 August")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for Covid19 August")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
+            
             ds_root = os.path.join(args.data_path, 'Covid19/CTImagesInCOVID19')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for Covid19 Other")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for Covid19 Other")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'lidc-idri':
-            #TODO - Filter CT data using metadata? Merge Dicom files?
-            ds_root = os.path.join(args.data_path, 'LIDC-IDRI')
+            ds_root = os.path.join(args.data_path, 'LIDC-IDRI-nifti')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for LIDC-IDRI")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for LIDC-IDRI")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'hnscc':
-            #TODO - Filter CT data using metadata? Merge Dicom files?
-            ds_root = os.path.join(args.data_path, 'HNSCC')
+            ds_root = os.path.join(args.data_path, 'HNSCC-nifti')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for HNSCC")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for HNSCC")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
         elif ds == 'colon':
-            #TODO - Unknown
-            ds_root = os.path.join(args.data_path, 'Colon')
+            ds_root = os.path.join(args.data_path, 'CT-Colon-nifti')
             files = os.listdir(ds_root)
-            print("Creating torchio subjects for Colon")
-            subjects = create_tio_subjects(files)
-            print("Completed torchio subjects for Colon")
-            all_ds_subjects.append(subjects)
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'luna16':
+            ds_root = os.path.join(args.data_path, 'LUNA16/Data/')
+            files = glob(ds_root + '*.mhd')
+            subjects = create_tio_subjects(args, files, ds)
+            all_ds_subjects = all_ds_subjects + subjects
+
     return all_ds_subjects
 
 
