@@ -247,7 +247,8 @@ def init_distributed_mode(args):
         devc = torch.cuda.device_count()
         print("Slurm rank is: {} and device count is: {}".format(srank, devc))
     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                         world_size=args.world_size, rank=args.rank)
+                                         world_size=args.world_size, rank=args.rank,
+                                         timeout=datetime.timedelta(seconds=5400))
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
 
@@ -255,8 +256,8 @@ def init_distributed_mode(args):
 class NativeScalerWithGradNormCount:
     state_dict_key = "amp_scaler"
 
-    def __init__(self):
-        self._scaler = torch.cuda.amp.GradScaler()
+    def __init__(self, enabled):
+        self._scaler = torch.cuda.amp.GradScaler(enabled=enabled)
 
     def __call__(self, loss, optimizer, clip_grad=None, parameters=None, create_graph=False, update_grad=True):
         self._scaler.scale(loss).backward(create_graph=create_graph)
@@ -349,3 +350,7 @@ def log_to_neptune(neptune_logger, metric_dict):
     for k, v in metric_dict.items():
         if not k == 'epoch':
             neptune_logger[k].log(v, epoch)
+
+def get_files_in_subfolders(folder):
+    #TODO Create this
+    return os.listdir(folder)

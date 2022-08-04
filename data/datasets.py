@@ -9,6 +9,7 @@
 # --------------------------------------------------------
 
 import os
+from glob import glob
 from PIL import Image
 import numpy as np
 import pandas as pd
@@ -110,24 +111,31 @@ def build_dataset_pretrain(args):
 
 
 def build_tio_dataset(args, transform):
-    files = os.listdir(args.data_path)
-    print("Preparing torchio dataset using {} files".format(len(files)))
+    subjects = prepare_datasets(args)
+    subjects_dataset = tio.SubjectsDataset(subjects, transform=transform)
+    return subjects_dataset
+
+
+def create_tio_subjects(args, files, dataset, reader):
+    print("Preparing torchio dataset using {} files for dataset {}".format(len(files), dataset))
     subjects_list = []
     for f in files:
-        fp = os.path.join(args.data_path, f)
-        subject = tio.Subject(t1=tio.ScalarImage(fp))
+        try:
+            subject = tio.Subject(t1=tio.ScalarImage(f, reader=reader))
+        except RuntimeError as re:
+            print('Failed to create subject for file {} with error {}'.format(f, re))
+            continue
         org_shape = list(subject.shape)[1:]
         if args.voxel_interpolation:
-            affine = subject['t1'].affine[np.nonzero(subject['t1'].affine)][:-1]
-            shape = np.array(np.ceil(org_shape * abs(affine) / args.voxel_spacing))
+            spatial_affine = subject['t1'].affine[0:3, 0:3]
+            nz_affine = spatial_affine[np.nonzero(spatial_affine)]
+            shape = np.array(np.ceil(org_shape * abs(nz_affine) / args.voxel_spacing))
         else:
             shape = np.array(org_shape)
         if (shape >= args.input_size).all():
             subjects_list.append(subject)
-    print('Number of files in resulting subject list: {}'.format(len(subjects_list)))
-
-    subjects_dataset = tio.SubjectsDataset(subjects_list, transform=transform)
-    return subjects_dataset
+    print('Number of files for dataset {} in resulting subject list: {} '.format(dataset, len(subjects_list)))
+    return subjects_list
 
 
 def build_transform_pretrain(args):
@@ -136,12 +144,11 @@ def build_transform_pretrain(args):
         std = IMAGENET_DEFAULT_STD
     else:
         # DeepLesion mean and std
-        mean = 0.1943
-        std = 0.2786
+        mean = args.norm_mean
+        std = args.norm_std
     if args.input_dim == 3:
         custom_t = []
         default_t = [
-            TioRandomResizedCropOrPad(args.input_size, scale=(0.2, 1.0)),
             tio.RandomAffine(degrees=0),  # Only random scaling, no rotation.
             tio.RandomFlip(axes=(0, 1)),
             ZNormalizationFixed(mean, std)
@@ -149,12 +156,21 @@ def build_transform_pretrain(args):
         if args.voxel_interpolation:
             custom_t.append(tio.Resample(args.voxel_spacing[0] if len(args.voxel_spacing) < 2 else tuple(args.voxel_spacing)))
         if args.transform_ct_intensity:
-            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
-                                                     in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
-                                                     cube_rooted=True))
+            if args.cube_root_ct:
+                custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                         in_min_max=(args.ct_intensity_min, args.ct_intensity_max),
+                                                         cube_rooted=True))
+            else:
+                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1),
+                                                     in_min_max=(args.ct_intensity_min, args.ct_intensity_max)))
+
         else:
-            custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
-                                                     cube_rooted=False))
+            if args.cube_root_ct:
+                custom_t.append(RescaleIntensityCubeRoot(out_min_max=(0, 1),
+                                                         percentiles=(5, 95),
+                                                         cube_rooted=True))
+            else:
+                custom_t.append(tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(5, 95)))
         t = tio.Compose(custom_t + default_t)
     else:
         custom_t = []
@@ -167,6 +183,50 @@ def build_transform_pretrain(args):
             custom_t.append(ClipCTIntensity(args.ct_intensity_min, args.ct_intensity_max))
         t = transforms.Compose(custom_t + default_t)
     return t
+
+
+def prepare_datasets(args):
+    all_ds_subjects = []
+    for ds in args.datasets:
+        reader = tio.io._read_nibabel
+        if ds == 'deeplesion':
+            ds_root = os.path.join(args.data_path, 'DeepLesion')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'covid19':
+            ds_root = os.path.join(args.data_path, 'Covid19/CT-Covid-19-August2020')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+            
+            ds_root = os.path.join(args.data_path, 'Covid19/CTImagesInCOVID19')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'lidc_idri':
+            ds_root = os.path.join(args.data_path, 'LIDC-IDRI-nifti')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'hnscc':
+            ds_root = os.path.join(args.data_path, 'HNSCC-nifti')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'colon':
+            ds_root = os.path.join(args.data_path, 'CT-Colon-nifti')
+            files = glob(os.path.join(ds_root, '**'))
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+        elif ds == 'luna16':
+            ds_root = os.path.join(args.data_path, 'LUNA16/Data/')
+            files = glob(os.path.join(ds_root, '*.mhd'))
+            reader = tio.io.read_image
+            subjects = create_tio_subjects(args, files, ds, reader)
+            all_ds_subjects = all_ds_subjects + subjects
+
+    return all_ds_subjects
 
 
 def grayscale_loader(path):

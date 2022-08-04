@@ -80,6 +80,11 @@ def get_args_parser():
                         help='Add additional an additiona loss term for the mean of each patch')
     parser.set_defaults(mean_patch_loss=False)
 
+    parser.add_argument('--mixed_precision', action='store_true',
+                        help='Use mixed precision for model, operations and input')
+    parser.set_defaults(mixed_precision=False)
+
+
     # Optimizer parameters
     parser.add_argument('--weight_decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
@@ -99,6 +104,8 @@ def get_args_parser():
                         help='If input images should be clipped to a set intensity during preprocessing')
     parser.add_argument('--transform_ct_intensity', default=False, action='store_true',
                         help='If input images should be clipped to a set intensity during transform')
+    parser.add_argument('--cube_root_ct', default=False, action='store_true',
+                        help='If the ct intensity should be cube rooted before scaled into the correct span')
     parser.add_argument('--ct_intensity_min', default=-1000, type=int,
                         help='Minimum CT intensity')
     parser.add_argument('--ct_intensity_max', default=1000, type=int,
@@ -108,10 +115,15 @@ def get_args_parser():
     parser.add_argument('--voxel_spacing', nargs='*', type=float, default=[1.0],
                         help='The voxel spacing to interpolate to. Can be a single value which then will be used for '
                              'xyz or a tuple of 3 values. Example: --voxel_spacing 1, --voxel_spacing 1 1.5 2')
+    parser.add_argument('--norm_mean', default=0.1943, type=float,
+                        help='Mean for normalization')
+    parser.add_argument('--norm_std', default=0.2786, type=float,
+                        help='Standard deviation for normalization')
 
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
                         help='dataset path')
+    parser.add_argument('--datasets', nargs='*', type=str, help='The datasets used in pretraining.')
 
     parser.add_argument('--use_tmp_dir', default=False, action='store_true',
                         help='If data should be extract from data_path to a local temp directory')
@@ -271,7 +283,7 @@ def main(args):
     param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
-    loss_scaler = NativeScaler()
+    loss_scaler = NativeScaler(enabled=args.mixed_precision)
 
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
