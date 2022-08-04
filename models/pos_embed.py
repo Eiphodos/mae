@@ -1,4 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
+    # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
 # This source code is licensed under the license found in the
@@ -39,14 +39,14 @@ def get_3d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
 
 
 def get_3d_sincos_pos_embed_from_grid(embed_dim, grid):
-    assert embed_dim % 2 == 0
+    assert embed_dim % 3 == 0
 
     # use third of dimensions to encode grid_d/h/w
-    emb_d = get_1d_sincos_pos_embed_from_grid((embed_dim // 3) + embed_dim % 3, grid[0])  # (D*H*W, E/3)
-    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[0])  # (D*H*W, E/3)
-    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[1])  # (D*H*W, E/3)
+    emb_d = get_1d_sincos_pos_embed_from_grid((embed_dim // 3), grid[0])  # (D*H*W, E/3)
+    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[1])  # (D*H*W, E/3)
+    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 3, grid[2])  # (D*H*W, E/3)
 
-    emb = np.concatenate([emb_d, emb_h, emb_w], axis=1) # (H*W, D)
+    emb = np.concatenate([emb_d, emb_h, emb_w], axis=1) # (D*H*W, E)
     return emb
 
 
@@ -92,9 +92,9 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     out: (M, D)
     """
     assert embed_dim % 2 == 0
-    omega = np.arange(embed_dim // 2, dtype=np.float)
+    omega = np.arange(embed_dim // 2, dtype=np.float32)
     omega /= embed_dim / 2.
-    omega = 1. / 10000**omega  # (D/2,)
+    omega = 1. / 1000**omega  # (D/2,)
 
     pos = pos.reshape(-1)  # (M,)
     out = np.einsum('m,d->md', pos, omega)  # (M, D/2), outer product
